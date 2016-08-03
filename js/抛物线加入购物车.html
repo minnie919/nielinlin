@@ -1,0 +1,252 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>抛物线加入购物车</title>
+<style>
+body,p,form,input,button,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6{margin:0;padding:0;list-style:none;}
+body,button,input,select,textarea{font:12px Arial, Helvetica, sans-serif;color:#333;}
+input,select,textarea{font-size:100%;}
+a{text-decoration:none;color:#333;}
+a:hover{text-decoration:none;color:#E60012;}
+a.blue_link{color:#06c;}
+a.blue_link:hover{color:#f60;}
+.clearfix:after{display:block;content:".";height:0;visibility:hidden;clear:both;font-size:0;line-height:0;}
+.clearfix{*zoom:1;}
+img{border:0 none;vertical-align:top;}
+em{font-style:normal;}
+button::-moz-focus-inner{padding:0;border:none;}
+.wrap{margin:0 auto;width:980px;}
+.fl{float:left;}
+.fr{float:right;}
+.mt{margin-top:10px;}
+.ml{margin-left:10px;}
+.mt5{margin-top:5px;}
+.mt10{margin-top:10px;}
+.mb{margin-bottom:10px;}
+.none{display:none;}
+
+html,body{height:100%;}
+.sport_item{ position: absolute; display: block; width: 20px; height: 20px; border-right: 10px; background-color: green;}
+a.add_cart{ position: absolute; top: 30%;left: 200px; width: 100px;height: 50px; line-height: 50px;text-align: center;color: #ffffff; background-color:red; }
+.buy_cart{position: absolute;top: 50%;left: 0; padding:10px; text-align: center; color: #fff; background-color: red;}
+.container{ height:1200px;background-color:blue;}
+.fixed_right{ position:fixed; _position:absolute; top:0; right:0; height:100%; width:397px;}
+.fix_nav{ position:absolute; top:0; left:0; width:34px; height:100%; border-left:1px solid #322f2f; background-color:#3f3c3c;}
+.fix_detail{ position:absolute; top:0; right:0; width:360px; height:100%; border:1px solid #eeeeee; background-color:#fff;}
+</style>
+</head>
+
+<body>
+<div class="container">
+	<a href="javascript:;" class="add_cart" id="add_cart">加入购物车</a>
+</div>
+<!--右侧fixed-->
+<div class="fixed_right">
+	<div class="fix_nav"><div class="buy_cart" id="buy_cart">购物车</div></div>
+    <div class="fix_detail"></div>
+</div>
+<script src="http://code.jquery.com/jquery-latest.js"></script>
+<script type="text/javascript">
+var funParabola = function(element, target, options) {
+	/*
+	 * 网页模拟现实需要一个比例尺
+	 * 如果按照1像素就是1米来算，显然不合适，因为页面动不动就几百像素
+	 * 页面上，我们放两个物体，200~800像素之间，我们可以映射为现实世界的2米到8米，也就是100:1
+	 * 不过，本方法没有对此有所体现，因此不必在意
+	*/
+	
+	var defaults = {
+		speed: 366.67, // 每帧移动的像素大小，每帧（对于大部分显示屏）大约16~17毫秒
+		curvature: 0.001,  // 实际指焦点到准线的距离，你可以抽象成曲率，这里模拟扔物体的抛物线，因此是开口向下的
+		progress: function() {},
+		complete: function() {}
+	};
+	
+	var params = {}; options = options || {};
+	
+	for (var key in defaults) {
+		params[key] = options[key] || defaults[key];
+	}
+	
+	var exports = {
+		mark: function() { return this; },
+		position: function() { return this; },
+		move: function() { return this; },
+		init: function() { return this; }
+	};
+	
+	/* 确定移动的方式 
+	 * IE6-IE8 是margin位移
+	 * IE9+使用transform
+	*/
+	var moveStyle = "margin", testDiv = document.createElement("div");
+	if ("oninput" in testDiv) {
+		["", "ms", "webkit"].forEach(function(prefix) {
+			var transform = prefix + (prefix? "T": "t") + "ransform";
+			if (transform in testDiv.style) {
+				moveStyle = transform;
+			}
+		});		
+	}
+	
+	// 根据两点坐标以及曲率确定运动曲线函数（也就是确定a, b的值）
+	/* 公式： y = a*x*x + b*x + c;
+	*/
+	var a = params.curvature, b = 0, c = 0;
+	
+	// 是否执行运动的标志量
+	var flagMove = true;
+	
+	if (element && target && element.nodeType == 1 && target.nodeType == 1) {
+		var rectElement = {}, rectTarget = {};
+		
+		// 移动元素的中心点位置，目标元素的中心点位置
+		var centerElement = {}, centerTarget = {};
+		
+		// 目标元素的坐标位置
+		var coordElement = {}, coordTarget = {};
+		
+		// 标注当前元素的坐标
+		exports.mark = function() {
+			if (flagMove == false) return this;
+			if (typeof coordElement.x == "undefined") this.position();
+			element.setAttribute("data-center", [coordElement.x, coordElement.y].join());
+			target.setAttribute("data-center", [coordTarget.x, coordTarget.y].join());
+			return this;
+		}
+		
+		exports.position = function() {
+			if (flagMove == false) return this;
+			
+			var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft,
+				scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+			
+			// 初始位置
+			if (moveStyle == "margin") {
+				element.style.marginLeft = element.style.marginTop = "0px";
+			} else {
+				element.style[moveStyle] = "translate(0, 0)";
+			}
+			
+			// 四边缘的坐标
+			rectElement = element.getBoundingClientRect();
+			rectTarget = target.getBoundingClientRect();
+			
+			// 移动元素的中心点坐标
+			centerElement = {
+				x: rectElement.left + (rectElement.right - rectElement.left) / 2 + scrollLeft,
+				y: rectElement.top + (rectElement.bottom - rectElement.top) / 2	+ scrollTop
+			};
+			
+			// 目标元素的中心点位置
+			centerTarget = {
+				x: rectTarget.left + (rectTarget.right - rectTarget.left) / 2 + scrollLeft,
+				y: rectTarget.top + (rectTarget.bottom - rectTarget.top) / 2 + scrollTop		
+			};
+			
+			// 转换成相对坐标位置
+			coordElement = {
+				x: 0,
+				y: 0	
+			};
+			coordTarget = {
+				x: -1 * (centerElement.x - centerTarget.x),
+				y:  -1 * (centerElement.y - centerTarget.y)	
+			};
+			
+			/*
+			 * 因为经过(0, 0), 因此c = 0
+			 * 于是：
+			 * y = a * x*x + b*x;
+			 * y1 = a * x1*x1 + b*x1;
+			 * y2 = a * x2*x2 + b*x2;
+			 * 利用第二个坐标：
+			 * b = (y2+ a*x2*x2) / x2
+			*/
+			// 于是
+			b = (coordTarget.y - a * coordTarget.x * coordTarget.x) / coordTarget.x;	
+			
+			return this;
+		};		
+		
+		// 按照这个曲线运动
+		exports.move = function() {
+			// 如果曲线运动还没有结束，不再执行新的运动
+			if (flagMove == false) return this;
+			
+			var startx = 0, rate = coordTarget.x > 0? 1: -1;
+
+			var step = function() {
+				// 切线 y'=2ax+b
+				var tangent = 2 * a * startx + b; // = y / x
+				// y*y + x*x = speed
+				// (tangent * x)^2 + x*x = speed
+				// x = Math.sqr(speed / (tangent * tangent + 1));
+				startx = startx + rate * Math.sqrt(params.speed / (tangent * tangent + 1));
+				
+				// 防止过界
+				if ((rate == 1 && startx > coordTarget.x) || (rate == -1 && startx < coordTarget.x)) {
+					startx = coordTarget.x;
+				}
+				var x = startx, y = a * x * x + b * x;
+				
+				// 标记当前位置，这里有测试使用的嫌疑，实际使用可以将这一行注释
+				element.setAttribute("data-center", [Math.round(x), Math.round(y)].join());
+				
+				// x, y目前是坐标，需要转换成定位的像素值
+				if (moveStyle == "margin") {
+					element.style.marginLeft = x + "px";
+					element.style.marginTop = y + "px";
+				} else {
+					element.style[moveStyle] = "translate("+ [x + "px", y + "px"].join() +")";
+				}
+				
+				if (startx !== coordTarget.x) {
+					params.progress(x, y);
+					window.requestAnimationFrame(step);	
+				} else {
+					// 运动结束，回调执行
+					params.complete();
+					flagMove = true;
+				}
+			};
+			window.requestAnimationFrame(step);
+			flagMove = false;
+			
+			return this;
+		};
+		
+		// 初始化方法
+		exports.init = function() {
+			this.position().mark().move();
+		};
+	}
+	
+	return exports;
+};
+
+/*收藏特效*/
+	// var favEffect = function(){
+	var target = document.getElementById("buy_cart");
+	$(".add_cart").click(function(){
+		//创建运动元素
+		var sportItem = document.createElement("span");
+		sportItem.className = "sport_item";
+		var x = $(this).offset().left;
+		var y = $(this).offset().top;
+		$(sportItem).appendTo($('html body')).css({"left":x,"top":y});
+		//抛物线元素的的位置标记
+		funParabola(sportItem, target,{
+			speed:200,
+			complete: function() {
+				var ty = parseInt($(sportItem).css("top"))-20;
+				$(sportItem).delay(300).animate({"top":ty - 20,"opacity":0},1000,function(){
+					$(this).remove();
+				});
+			}
+		}).mark().init();
+	});
+</script>
+</body>
+</html>
